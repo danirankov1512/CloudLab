@@ -15,3 +15,8 @@ variable "vnet_name" {
   description = "Името на виртуалната мрежа"
   default     = "vnet2-homelab-tf"
 }
+
+variable "my_public_ip" {
+  type        = string
+  description = "Моят личен публичен IP адрес за сигурен SSH достъп"
+}
