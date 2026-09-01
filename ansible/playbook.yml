@@ -1,0 +1,45 @@
+---
+- name: Configure Web Server and Apply Security Baseline
+  hosts: webservers
+  become: yes # Изпълнява задачите като 'root' (sudo)
+  
+  tasks:
+    # 1. Ъпдейт на apt кеша
+    - name: Update apt repository cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    # 2. Инсталиране на Nginx
+    - name: Install Nginx web server
+      apt:
+        name: nginx
+        state: present
+
+    # 3. Конфигуриране на UFW - Позволяваме SSH
+    - name: Allow SSH traffic in UFW
+      ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    # 4. Конфигуриране на UFW - Позволяваме HTTP (Nginx)
+    - name: Allow HTTP traffic in UFW
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    # 5. Активиране на UFW защитната стена
+    - name: Enable UFW firewall and set default deny
+      ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    # 6. Уверяваме се, че Nginx е пуснат и ще стартира с машината
+    - name: Ensure Nginx is running and enabled
+      service:
+        name: nginx
+        state: started
+        enabled: yes
