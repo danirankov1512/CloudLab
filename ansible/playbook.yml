@@ -1,7 +1,7 @@
 ---
 - name: Configure Web Server and Apply Security Baseline
   hosts: webservers
-  become: yes # Изпълнява задачите като 'root' (sudo)
+  become: true # Изпълнява задачите като 'root' (sudo)
   
   tasks:
     # 1. Ъпдейт на apt кеша
@@ -43,3 +43,74 @@
         name: nginx
         state: started
         enabled: yes
+
+        # 7. Изчистване на счупените репозитори файлове от старите опити
+    - name: Purge old broken APT repository files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/sources.list.d/docker.list.save
+        - /tmp/get-docker.sh
+
+    # 8. Изчистване на остарели GPG ключове в trusted.gpg.d (ако има останали)
+    - name: Remove old docker gpg key from trusted keyrings
+      file:
+        path: /etc/apt/trusted.gpg.d/docker.gpg
+        state: absent
+
+    # 9. Принудителен ъпдейт на apt след пълното почистване (за да отблокираме apt)
+    - name: Force apt update to clean state
+      apt:
+        update_cache: yes
+
+    # 10. Сваляне на официалния инсталационен скрипт на чисто
+    - name: Download clean Docker installation script
+      get_url:
+        url: https://get.docker.com
+        dest: /tmp/get-docker.sh
+        mode: '0700'
+
+    # 11. Изпълнение на скрипта на напълно чиста операционна система
+    - name: Run clean Docker installation script
+      command: /tmp/get-docker.sh
+      args:
+        creates: /usr/bin/docker
+
+    # 12. Уверяваме се, че Docker услугата е пусната и активна
+    - name: Ensure Docker service is running and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # 13. Добавяне на 'azureuser' в групата 'docker'
+    - name: Add azureuser to docker group
+      user:
+        name: azureuser
+        groups: docker
+        append: yes
+
+    # 14. Забрана на SSH логване за root потребителя (Hardening)
+    - name: Disable root login via SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: Restart SSH
+
+    # 15. Спиране на автентикацията с пароли - САМО SSH КЛЮЧОВЕ!
+    - name: Disable password authentication via SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+      notify: Restart SSH
+
+  # Този блок (handlers) се задейства само ако някоя от горните задачи е направила промяна
+  handlers:
+    - name: Restart SSH
+      service:
+        name: sshd
+        state: restarted
